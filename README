@@ -1,0 +1,59 @@
+Win32-EnvProcess version 0.01
+================================
+
+Perl extension to set or get environment variables from
+other processes on Windows only
+
+SYNOPSIS
+
+    use Win32::EnvProcess (:all);
+    
+    my $result = SetEnvProcess($pid, env_var_name, [value], ...);
+    
+    my @values = GetEnvProcess($pid, env_var_name, [...]);
+    
+INSTALLATION
+
+To install this module type the following:
+
+   perl Makefile.PL
+   nmake
+   nmake test  (see TESTS below)
+   nmake install
+   
+   * NON-STANDARD step *
+   The method used for communication with the alien process is called
+   "DLL injection", which attaches a DLL to it.  Code is executed
+   When the DLL is attached to the process, or a new thread is created.
+   
+   The DLL is named EnvProcessDll.dll does not contain any perl components;
+   
+   It must be copied to a directory (folder) that is on the load path
+   OF THE TARGET PROCESS.  If you are not sure where that may be, try C:\Perl\bin
+   (we presumably have perl installed, and it is probably in everyone's path).
+   This is done by the tests by default.
+   
+   copy .\blib\arch\auto\Win32\EnvProcess\EnvProcessDll.dll some-directory
+   
+   You do not have to use the command-line for the copy, drag-and-drop with Windows
+   Explorer is probably easier.
+
+TESTS
+
+Currently assume you are launching the tests from cmd.exe.  This will not work if
+another shell is being used.  I will probably change this to a perl script in a future release.
+
+
+DEPENDENCIES
+
+Requires Psapi.lib, which is not available on Windows versions earlier than NT4.
+
+COPYRIGHT AND LICENCE
+
+Copyright (C) 2007 by C. B. Darke
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself, either Perl version 5.8.8 or,
+at your option, any later version of Perl 5 you may have available.
+
+
