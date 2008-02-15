@@ -2,6 +2,7 @@
 # `make test'. After `make install' it should work as `perl Win32-EnvProcess.t'
 
 #########################
+#  v.0.02
 
 use File::Copy;
 use File::Basename;
@@ -27,11 +28,10 @@ ok(copy($from, $to), "Copy DLL") or
 
 my @tasks = map {(split)[1]} grep /^cmd.exe/,qx(tasklist);
 my @pids = GetPids('cmd.exe');
-is(scalar(@pids), 2, 'GetPids') or 
-      diag ("There appears to be additional cmd.exe sessions running,\n",
-            "please close these down for the duration of these tests.\n");
+is(scalar(@pids), scalar(@tasks), 'GetPids') or 
+      diag ('GetPids:'.@pids.', tasklist:'.@tasks);
 
-# If you have to have other cmd.exe's running, then alter this.
+# Just pick one of the cmd.exes
 my $pid = $pids[0];
 
 # tasks from tasklist and pids from GetPids should be the same,
