@@ -24,7 +24,7 @@ our @EXPORT = qw(
 	
 );
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 sub AUTOLOAD {
     # This AUTOLOAD is used to 'autoload' constants from the constant()
@@ -78,7 +78,7 @@ other processes
   my $result = DelEnvProcess($pid, env_var_name, [...]);
   
   use Win32::EnvProcess qw(GetPids);
-  my @pids = GetPids($exe_name);
+  my @pids = GetPids([exe_name]);
 
 
 =head1 DESCRIPTION
@@ -113,6 +113,7 @@ None by default.
 my $result = SetEnvProcess($pid, env_var_name, [value], ...);
 
 $pid:  		The process identifier (PID) of the target process.
+		If set to 0 (zero) the parent process identifier is used
 env_var_name:	The name of the environment variable to be set
 value:		The value of the preceeding environment variable
 
@@ -138,6 +139,7 @@ will be available in $^E.
 my @values = GetEnvProcess($pid, env_var_name, [...]);
 
 $pid:  		The process identifier (PID) of the target process.
+		If set to 0 (zero) the parent process identifier is used
 env_var_name:	The name[s] of the environment variable[s] to be read
 
 Get one or more environment variable values from another process.
@@ -150,6 +152,7 @@ empty strings if no value is set.
 my $result = DelEnvProcess($pid, env_var_name, ...);
 
 $pid:  		The process identifier (PID) of the target process.
+		If set to 0 (zero) the parent process identifier is used
 env_var_name:	The name of the environment variable to be deleted
 
 Delete one or more environment variables in another process.
@@ -165,12 +168,12 @@ will be available in $^E.
 
 =head2 GetPids
 
-my @pids = GetPids($exe_name);
+my @pids = GetPids([exe_name]);
 
-$exe_name:	The basename of an executable file (including the '.exe');
+exe_name:	The basename of an executable file (including the '.exe')
 
-A case-insensitive match is done between the supplied exe name and running 
-processes. 
+If supplied, a case-insensitive match is done between the exe name and running 
+processes.  If not supplied, then the identifier of the parent process is returned.
 
 Returns: A list of process-ids of processes running the supplied exe, or zero on 
 error.  This function is provided to assist in obtaining the required process id.  
@@ -181,8 +184,6 @@ The .exe files registered with a process may be in 8.3 format, and currently
 this function makes no attempt to resolve a 'long name' to short.
 
 =head1 LIMITATIONS
-
-Requires Psapi.lib, which is not available on Windows versions earlier than NT4.
 
 Total size of variable names and values: 4096.
 Total number of environment variables  :  127.

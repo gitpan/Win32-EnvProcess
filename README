@@ -1,4 +1,4 @@
-Win32-EnvProcess version 0.01
+Win32-EnvProcess version 0.02
 ================================
 
 Perl extension to set or get environment variables from
@@ -46,11 +46,11 @@ another shell is being used.  I will probably change this to a perl script in a 
 
 DEPENDENCIES
 
-Requires Psapi.lib, which is not available on Windows versions earlier than NT4.
+None
 
 COPYRIGHT AND LICENCE
 
-Copyright (C) 2007 by C. B. Darke
+Copyright (C) 2008 by C. B. Darke
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.8.8 or,

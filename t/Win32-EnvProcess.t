@@ -2,14 +2,14 @@
 # `make test'. After `make install' it should work as `perl Win32-EnvProcess.t'
 
 #########################
-#  v.0.02
+#  v.0.03
 
 use File::Copy;
 use File::Basename;
 use Config;
 use Cwd;
 
-use Test::More tests => 21;
+use Test::More tests => 27;
 
 use Win32::EnvProcess qw(:all);
 ok(1); # If we made it this far, we're ok.
@@ -31,9 +31,6 @@ my @pids = GetPids('cmd.exe');
 is(scalar(@pids), scalar(@tasks), 'GetPids') or 
       diag ('GetPids:'.@pids.', tasklist:'.@tasks);
 
-# Just pick one of the cmd.exes
-my $pid = $pids[0];
-
 # tasks from tasklist and pids from GetPids should be the same,
 # but not necessarily in the same order
 {
@@ -46,6 +43,10 @@ my $pid = $pids[0];
          diag ("tasks: @tasks, pids: @pids");
 }   
 
+# Get the parent
+my $pid = GetPids();
+is(0+$^E, 0, 'os error ok') or diag ("$^E: Value of \$pid is: $pid\n");
+ok($pid != 0, "ppid") or diag ("\$pid: $pid");
 
 my %hash = qw (var_thing some_value var_another another yavar yavalue);
 my $result = SetEnvProcess($pid, %hash);
@@ -62,6 +63,15 @@ ok(scalar(@values) == 2, "Get 2 vars") or diag ("\@values(2): @values");
 ok($values[0] eq $ENV{'USERNAME'}, "Check USERNAME") or 
     diag ("\%ENV: $ENV{'USERNAME'}, \$values[0]: $values[0]");
 ok(!defined $result[1], "Get 2 vars - 2nd no value") or diag ("\@values(2): @values");
+
+# Once again, defaulting the pid
+@values = GetEnvProcess (0, 'USERNAME', 'abcdefg');
+is(0+$^E, 0, 'os error ok') or diag ("$^E: 'USERNAME' & 'abcdefg'\n");
+ok(scalar(@values) == 2, "Get 2 vars") or diag ("\@values(2): @values");
+ok($values[0] eq $ENV{'USERNAME'}, "Check USERNAME") or 
+    diag ("\%ENV: $ENV{'USERNAME'}, \$values[0]: $values[0]");
+ok(!defined $result[1], "Get 2 vars - 2nd no value") or diag ("\@values(2): @values");
+
 
 @values = GetEnvProcess ($pid, 'abcdefg');
 is(0+$^E, 0, 'os error ok') or diag ("$^E: 'abcdefg'\n");

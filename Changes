@@ -6,3 +6,8 @@ Revision history for Perl extension Win32::EnvProcess.
 
 0.02  Fri Feb 15 10:15:00 2008
         - changed tests to allow for multiple cmd.exe sessions
+
+0.03  Wed Mar 26 11:03:00 2008
+	- removed dependency on Psapi.lib (specifically for Strawberry Perl)
+	- default process id for functions is now the parent process id.
+	- additional tests for new features

@@ -1,5 +1,5 @@
 #include <windows.h>
-#include <psapi.h>
+#include <tlhelp32.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "EXTERN.h"
@@ -42,7 +42,6 @@
 static void ProcessError(const char *szMessage);
 static BOOL FindDll(void);
 static int iGetPid (const char *pszExeName);
-static int GetProcessNameAndID( DWORD processID, const char *pszExeName);
 static char * strtolower (char * szIn);
 
 #define DLLNAME      "EnvProcessDll.dll"
@@ -105,62 +104,41 @@ static char * strtolower (char * szIn) {
 
 /* ------------------------------------------------------------------ */
 
-static int GetProcessNameAndID( DWORD processID, const char *pszExeName )
-{
-    char szProcessName[MAX_PATH] = "unknown";
-    HANDLE hProcess;
-     
-    /* DEBUG
-    char wk[80] = {0};
-    sprintf (wk, "processID: %d", processID);
-    ProcessError (wk);
-    */
+static int getppid(void) {
+
+    HANDLE hToolSnapshot;
+    PROCESSENTRY32 Pe32 = {0};
+    BOOL bResult;
+    DWORD PID;
+    DWORD PPID = 0;
     
-    if (processID == 0) return 0;   // We get this, why?
-    
-    // Get a handle to the process.
+    PID = GetCurrentProcessId ();
 
-    hProcess = OpenProcess( PROCESS_QUERY_INFORMATION |
-                            PROCESS_VM_READ,
-                            FALSE, processID );
-
-    // Get the process name.
-
-    if (NULL != hProcess )
-    {
-        HMODULE hMod;    // We only want the first module
-        DWORD cbNeeded;
-
-        if ( EnumProcessModules( hProcess, &hMod, sizeof(hMod), 
-             &cbNeeded) )
-        {
-            GetModuleBaseName( hProcess, hMod, szProcessName, 
-                               sizeof(szProcessName) );
-        }
-        else {
-            //ProcessError ("EnumProcessModules");
-            return 0;
-        }
-    }
-    else {
-        //ProcessError ("OpenProcess");
+    hToolSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (hToolSnapshot == INVALID_HANDLE_VALUE) {
         return 0;
     }
-    
-    CloseHandle( hProcess );
-    
-    // We expect lots of 'Access is denied'
-    SetLastError(ERROR_SUCCESS);
 
-    strtolower (szProcessName);
+    Pe32.dwSize = sizeof(PROCESSENTRY32); 
+
+    bResult = Process32First(hToolSnapshot, &Pe32); 
+
+    if (!bResult) 
+        return 0;
     
-    if (!strcmp(szProcessName, pszExeName)) {
-       //ProcessError ("Found!");
-       return 1;
+    while ( Process32Next(hToolSnapshot, &Pe32) ) {
+        if (Pe32.th32ProcessID == PID) {
+            PPID = Pe32.th32ParentProcessID;
+            break;
+        }
     }
-    else {
-       return 0;
-    }   
+
+    /* Expected */
+    if (GetLastError() == ERROR_NO_MORE_FILES) {
+        SetLastError(ERROR_SUCCESS);
+    }
+
+    return PPID;
 }
 
 /* ------------------------------------------------------------------ */
@@ -268,6 +246,14 @@ SetEnvProcess(nPid, ...)
     /* Default return value - false (On error) */
     RETVAL = 0; 
 
+    /* Was a PID supplied? */
+    if (nPid == 0)
+    {
+       nPid = getppid();
+       if (!nPid)
+           XSRETURN_UNDEF;
+    }
+ 
     /* 'items' is the number of arguments, placed by perl */
    
     if ( items < 2 ) {
@@ -409,6 +395,14 @@ GetEnvProcess(nPid, ...)
     if (!FindDll())
         XSRETURN_UNDEF;
    
+    /* Was a PID supplied? */
+    if (nPid == 0)
+    {
+       nPid = getppid();
+       if (!nPid)
+           XSRETURN_UNDEF;
+    }
+    
     /* Create and grab the mutex */
     hMutex = CreateMutex (NULL, FALSE, MUTEXNAME);
    
@@ -534,6 +528,14 @@ DelEnvProcess (nPid, ...)
     /* Default return value - false (On error) */
     RETVAL = 0; 
 
+    /* Was a PID supplied? */
+    if (nPid == 0)
+    {
+       nPid = getppid();
+       if (!nPid)
+           XSRETURN_UNDEF;
+    }
+
     /* 'items' is the number of arguments, placed by perl */
    
     if ( items < 2 ) {
@@ -643,42 +645,77 @@ DelEnvProcess (nPid, ...)
 
 
 SV * 
-GetPids(InszExeName, ...)
-    const char *InszExeName;
-   
-    PROTOTYPE: $
+GetPids(...)
 
     CODE:
 
-    DWORD dwProcs[MAXPROCESSES] = {0};
     DWORD dwRetn = 0;
     int PIDs = 0;
-    size_t numProcesses;
     size_t i;
     char szExeName[MAX_PATH];
+    HANDLE hToolSnapshot;
+    PROCESSENTRY32 Pe32 = {0};
+    BOOL bResult;
 
+   
+    /*
+    {
+        char szWk[80];
+        sprintf (szWk, "InszExeName: <%s> len: %d items: %d\n", 
+                 InszExeName, strlen(InszExeName), items);
+        ProcessError(szWk);
+    }
+    */
+    
+    if ( items == 0 ) {
+        PIDs = getppid();
+        /* Place the PID on the stack */
+        XPUSHs(sv_2mortal(newSVuv(PIDs))); 
+        XSRETURN(1);
+    }
+    
+    {
+        /* Convert to lowercase for the comparison */
+        STRLEN n_a;
+        strcpy (szExeName, (char *)SvPV(ST(0), n_a));
+        strtolower (szExeName);
+    }
+    
     /* Loose the arguments on the stack */
     for ( i = 0; i < (size_t)items; i++)
         POPs;  
 
-    if (!EnumProcesses (dwProcs, MAXPROCESSES, &dwRetn)) {
-	//ProcessError("EnumProcesses");
-	XSRETURN_UNDEF;
+
+    hToolSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (hToolSnapshot == INVALID_HANDLE_VALUE) {
+       /* ProcessError ("CreateToolhelp32Snapshot"); */
+       XSRETURN_UNDEF;
     }
 
-    strcpy (szExeName, InszExeName);
-    strtolower (szExeName);
-    
-    numProcesses = dwRetn / sizeof(DWORD);
+    Pe32.dwSize = sizeof(PROCESSENTRY32); 
 
-    for ( i = 0; i < numProcesses; i++ ) {
-         
-        if (GetProcessNameAndID( dwProcs[i], szExeName)) {
-	         
-	   /* Place the PID on the stack */
-           XPUSHs(sv_2mortal(newSVuv(dwProcs[i]))); 
+    bResult = Process32First(hToolSnapshot, &Pe32); 
+
+    if (!bResult) {
+       /* ProcessError ("Process32First"); */
+       XSRETURN_UNDEF;
+    }
+    
+    while ( Process32Next(hToolSnapshot, &Pe32) ) {
+
+        strtolower (Pe32.szExeFile);
+      
+        if (!strcmp(Pe32.szExeFile, szExeName)) {
+           // ProcessError ("Found!");
+           /* Place the PID on the stack */
+           XPUSHs(sv_2mortal(newSVuv(Pe32.th32ProcessID))); 
            PIDs++;
         }
+    }
+
+    /* Expected */
+    if (GetLastError() == ERROR_NO_MORE_FILES) {
+        SetLastError(ERROR_SUCCESS);
     }
 
     XSRETURN(PIDs);

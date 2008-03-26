@@ -1,11 +1,9 @@
 Changes
-EnvProcess.h
-EnvProcess.xs
-EnvProcessDll.c
 Makefile.PL
 MANIFEST
 ppport.h
 README
+EnvProcess.xs
 t/Win32-EnvProcess.t
 fallback/const-c.inc
 fallback/const-xs.inc
