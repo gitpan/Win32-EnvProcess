@@ -2,13 +2,30 @@ use 5.006001;
 use ExtUtils::MakeMaker;
 
 package MY;
+use Config;
 
 sub postamble {
-    return <<'MAKE_FRAG';
+
+    # Which compiler?
+    if ($Config{cc} eq 'gcc') {
     
+        return <<'MAKE_GNU_FRAG';
+ 
+Dll: EnvProcessDll.c
+	$(CC) -c EnvProcessDll.c 
+	$(CC) -shared -o .\$(INST_ARCHLIB)\auto\$(FULLEXT)\EnvProcessDll.$(SO) EnvProcessDll.o
+MAKE_GNU_FRAG
+
+    }
+    else {
+        
+        return <<'MAKE_FRAG';
+ 
 Dll: EnvProcessDll.c
 	$(CC) $(CCFLAGS) EnvProcessDll.c  /link /OUT:.\$(INST_ARCHLIB)\auto\$(FULLEXT)\EnvProcessDll.$(SO) -dll
 MAKE_FRAG
+
+    }
 }
 
 sub top_targets {

@@ -12,7 +12,10 @@
 
 #include "EnvProcess.h"
 
-/* Limitations:
+/* 
+   Version 0.04
+   
+   Limitations:
 
    Total size of variable names and values: MAXSIZE
    Total number of environment variables: MAXITEMS/2
@@ -33,7 +36,7 @@
       
    FreeLibrary?  
    This could mean implementing using OO, so a destructor can be used.
-   or, is this an issue nly with the copy in tests?
+   or, is this an issue only with the copy in tests?
    
    Vista
 
@@ -47,6 +50,7 @@ static char * strtolower (char * szIn);
 #define DLLNAME      "EnvProcessDll.dll"
 #define MUTEXNAME    "mutexPerlTempEnvVar"
 #define MAXPROCESSES 1024
+#define DEBUGx
 /* ------------------------------------------------------------------ */
 
 static void ProcessError(const char *szMessage)
@@ -159,7 +163,6 @@ static BOOL FindDll(void)
          
     if ( dwLen == 0 )
     {
-       /* ProcessError (DLLNAME);  */
        bRetn = FALSE;
     }
     
@@ -181,7 +184,6 @@ BOOL ConnectToProcess(int nPid) {
 
    if ( hProcess == NULL )
    {
-      /* ProcessError ("OpenProcess"); */
       return FALSE;
    }
 
@@ -190,16 +192,14 @@ BOOL ConnectToProcess(int nPid) {
 
    if ( Remotep == NULL )
    {
-      /* ProcessError ("VirtualAllocEx"); */
       CloseHandle(hProcess);
       return FALSE;
    }
 
    if (!WriteProcessMemory (hProcess, Remotep, DLLNAME, cb, NULL))
    {
-      /* ProcessError ("WriteProcessMemory"); */
       CloseHandle(hProcess);
-      return NULL;
+      return FALSE;   /* Correction version 0.04 */
    }
   
    hThread = CreateRemoteThread (hProcess, NULL, 0, 
@@ -208,13 +208,15 @@ BOOL ConnectToProcess(int nPid) {
 
    if ( hThread == NULL )
    {
-      /* ProcessError ("CreateRemoteThread"); */
+      VirtualFreeEx(hProcess, Remotep, 0, MEM_RELEASE);   /* v0.04 */
       CloseHandle(hProcess);
       return FALSE;
    }
 
    WaitForSingleObject (hThread, INFINITE);
    CloseHandle(hThread);
+   
+   VirtualFreeEx(hProcess, Remotep, 0, MEM_RELEASE);   /* v0.04 */
    CloseHandle(hProcess);
 
    return TRUE;
@@ -237,7 +239,7 @@ SetEnvProcess(nPid, ...)
     DWORD  dwRetn;
     HANDLE hMutex; 
     HANDLE hMap; 
-    char *p;
+    char *p = NULL;
     char *p2;
     int i;
     int NumVars = 0;   /* Used for a return code */
@@ -269,7 +271,6 @@ SetEnvProcess(nPid, ...)
     hMutex = CreateMutex (NULL, FALSE, MUTEXNAME);
    
     if (hMutex == NULL) {
-       /* ProcessError ("CreateMutex"); */
        XSRETURN_UNDEF;
     }
   
@@ -293,9 +294,7 @@ SetEnvProcess(nPid, ...)
         p = MapViewOfFile (hMap, FILE_MAP_ALL_ACCESS, 0, 0, 0);
 
     if (p == NULL) {
-        /* ProcessError ("MapViewOfFile"); */
         CloseHandle (hMap);
-
         ReleaseMutex(hMutex);     
         CloseHandle(hMutex);
         XSRETURN_UNDEF;
@@ -338,7 +337,6 @@ SetEnvProcess(nPid, ...)
    /* Find the other process */
    if (!ConnectToProcess(nPid))
    {
-      /* ProcessError ("ConnectToProcess"); */
       UnmapViewOfFile (p);
       CloseHandle (hMap);
 
@@ -386,7 +384,8 @@ GetEnvProcess(nPid, ...)
     char *p;
     char *p2;
     int i;
-    int NumVars = 0;   /* Used for a return code */
+    int NumVars = 0;       /* Used for a return code */
+    BOOL bGetAll = FALSE;  /* A bit of a hack */
 
     /* Default return value - false (On error) */
     RETVAL = 0; 
@@ -407,7 +406,6 @@ GetEnvProcess(nPid, ...)
     hMutex = CreateMutex (NULL, FALSE, MUTEXNAME);
    
     if (hMutex == NULL) {
-       /* ProcessError ("CreateMutex"); */
        XSRETURN_UNDEF;
     }
   
@@ -431,9 +429,7 @@ GetEnvProcess(nPid, ...)
         p = MapViewOfFile (hMap, FILE_MAP_ALL_ACCESS, 0, 0, 0);
 
     if (p == NULL) {
-        /* ProcessError ("MapViewOfFile"); */
         CloseHandle (hMap);
-
         ReleaseMutex(hMutex);     
         CloseHandle(hMutex);
         XSRETURN_UNDEF;
@@ -441,27 +437,36 @@ GetEnvProcess(nPid, ...)
 
     p2 = p+2;   /* Reserve the first two bytes */
     
-    for (i = 1; i < items; i++) {
-       STRLEN n_a;
-       strcpy (p2, (char *)SvPV(ST(i), n_a));       
-       p2 += strlen(p2)+1;
+    if (items > 1) {
+    
+       for (i = 1; i < items; i++) {
+          STRLEN n_a;
+          strcpy (p2, (char *)SvPV(ST(i), n_a));       
+          p2 += strlen(p2)+1;
        
-       /* avoid overflowing the shared area */
-       if ((p2 - p) >= MAXSIZE || i >= MAXITEMS) {   
-          break;
+          /* avoid overflowing the shared area */
+          if ((p2 - p) >= MAXSIZE || i >= MAXITEMS) {   
+             break;
+          }
        }
+    
+       /* Tweek the number of items */
+       NumVars = i - 1;
+       if ( NumVars > MAXITEMS )
+          NumVars = MAXITEMS;
+        
+       /* Set the command in the first byte  */
+       p[0] = GETCMD;
+       /* Place the count in the second byte */
+       p[1] = NumVars;
+    }
+    else {
+       /* Set the command in the first byte  */
+       p[0] = GETALLCMD;
+       p[1] = 0;
+       bGetAll = TRUE;
     }
     
-    /* Tweek the number of items */
-    NumVars = i - 1;
-    if ( NumVars > MAXITEMS )
-       NumVars = MAXITEMS;
-        
-    /* Set the command in the first byte  */
-    p[0] = GETCMD;
-    /* Place the count in the second byte */
-    p[1] = NumVars;
-       
     /* Loose the arguments on the stack */
     for ( i = 0; i < items; i++)
         POPs;  
@@ -469,7 +474,6 @@ GetEnvProcess(nPid, ...)
    /* Find the other process */
    if (!ConnectToProcess(nPid))
    {
-      /* ProcessError ("ConnectToProcess"); */
       UnmapViewOfFile (p);
       CloseHandle (hMap);
 
@@ -477,23 +481,33 @@ GetEnvProcess(nPid, ...)
       CloseHandle(hMutex);
       XSRETURN_UNDEF;
    }
-   
-   /* DEBUG 
-   if (p[0] != GETCMD) {
-       char err[42];
-       sprintf (err, "Error: 0x%x\n", p[0]);
+ 
+   /* 
+   if (p[0] != GETCMD && p[0] != GETALLCMD) {
+       char err[81];
+       sprintf (err, "(GetEnvProcess) Error returned in FMO: 0x%02x", p[0]);
        ProcessError (err);
    }
    */
    
+   /* Get the number of variables from the FMO */
+   if (bGetAll) {
+       NumVars = p[1];
+   }
+   
    /* Read the returned variables and place them on the stack */
    p2 = p + 2;
       
-   for (i = 0; i < NumVars; i++) {
-      int iLen = strlen(p2);
-      
-      XPUSHs(sv_2mortal(newSVpvn (p2, iLen))); 
-      p2 += iLen + 1;
+   for (i = 0; i < NumVars; i++) {   
+      /* 0.04 change */
+      if (*p2) {
+          int iLen = strlen(p2);
+          XPUSHs(sv_2mortal(newSVpvn (p2, iLen))); 
+          p2 += iLen + 1;
+       }
+       else {
+          p2++;
+       }
    }
    
    ReleaseMutex(hMutex);   
@@ -550,7 +564,6 @@ DelEnvProcess (nPid, ...)
     hMutex = CreateMutex (NULL, FALSE, MUTEXNAME);
    
     if (hMutex == NULL) {
-       /* ProcessError ("CreateMutex"); */
        XSRETURN_UNDEF;
     }
   
@@ -574,9 +587,7 @@ DelEnvProcess (nPid, ...)
         p = MapViewOfFile (hMap, FILE_MAP_ALL_ACCESS, 0, 0, 0);
 
     if (p == NULL) {
-        /* ProcessError ("MapViewOfFile"); */
         CloseHandle (hMap);
-
         ReleaseMutex(hMutex);     
         CloseHandle(hMutex);
         XSRETURN_UNDEF;
@@ -612,10 +623,8 @@ DelEnvProcess (nPid, ...)
    /* Find the other process */
    if (!ConnectToProcess(nPid))
    {
-      /* ProcessError ("ConnectToProcess"); */
       UnmapViewOfFile (p);
       CloseHandle (hMap);
-
       ReleaseMutex(hMutex);     
       CloseHandle(hMutex);
       XSRETURN_UNDEF;
@@ -656,17 +665,7 @@ GetPids(...)
     HANDLE hToolSnapshot;
     PROCESSENTRY32 Pe32 = {0};
     BOOL bResult;
-
-   
-    /*
-    {
-        char szWk[80];
-        sprintf (szWk, "InszExeName: <%s> len: %d items: %d\n", 
-                 InszExeName, strlen(InszExeName), items);
-        ProcessError(szWk);
-    }
-    */
-    
+        
     if ( items == 0 ) {
         PIDs = getppid();
         /* Place the PID on the stack */
@@ -688,7 +687,6 @@ GetPids(...)
 
     hToolSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (hToolSnapshot == INVALID_HANDLE_VALUE) {
-       /* ProcessError ("CreateToolhelp32Snapshot"); */
        XSRETURN_UNDEF;
     }
 
@@ -697,7 +695,6 @@ GetPids(...)
     bResult = Process32First(hToolSnapshot, &Pe32); 
 
     if (!bResult) {
-       /* ProcessError ("Process32First"); */
        XSRETURN_UNDEF;
     }
     
@@ -706,7 +703,6 @@ GetPids(...)
         strtolower (Pe32.szExeFile);
       
         if (!strcmp(Pe32.szExeFile, szExeName)) {
-           // ProcessError ("Found!");
            /* Place the PID on the stack */
            XPUSHs(sv_2mortal(newSVuv(Pe32.th32ProcessID))); 
            PIDs++;

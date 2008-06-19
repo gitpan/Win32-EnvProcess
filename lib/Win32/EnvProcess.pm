@@ -24,7 +24,7 @@ our @EXPORT = qw(
 	
 );
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 sub AUTOLOAD {
     # This AUTOLOAD is used to 'autoload' constants from the constant()
@@ -69,10 +69,10 @@ other processes
   use Win32::EnvProcess qw(:all);
   
   use Win32::EnvProcess qw(SetEnvProcess); 
-  my $result = SetEnvProcess($pid, env_var_name, [value], ...);
+  my $result = SetEnvProcess($pid, env_var_name, [value], [...]);
       
   use Win32::EnvProcess qw(GetEnvProcess);
-  my @values = GetEnvProcess($pid, env_var_name, [...]);
+  my @values = GetEnvProcess($pid, [env_var_name, [...]]);
   
   use Win32::EnvProcess qw(DelEnvProcess);
   my $result = DelEnvProcess($pid, env_var_name, [...]);
@@ -136,16 +136,30 @@ will be available in $^E.
 
 =head2 GetEnvProcess
 
-my @values = GetEnvProcess($pid, env_var_name, [...]);
+my @values = GetEnvProcess($pid, [env_var_name, [...]]);
 
 $pid:  		The process identifier (PID) of the target process.
 		If set to 0 (zero) the parent process identifier is used
-env_var_name:	The name[s] of the environment variable[s] to be read
+env_var_name:	The name[s] of the environment variable[s] to be read.
+		If not supplied then as many environment variables as possible
+		are returned (see LIMITATIONS below).
 
 Get one or more environment variable values from another process.
 
-Returns: a list of environment variable values.  Note that these may be 
-empty strings if no value is set.  
+Returns undef on error, error information will be available in $^E.
+If one or more environment variable name are specified, alist of environment 
+variable values is returned.  Note that these may be empty strings if no value is set. 
+
+If no environment variable names are specified then the environment block is returned (subject to LIMITATIONS) in the form of a list.  
+Items are of the form variable=value and may be extracted into a hash as follows:
+  
+  @values = GetEnvProcess (0);
+  
+  my %proc_env;
+  for (@values) {
+      my ($key, $value) = split /=/;
+      $proc_env{$key} = $value;
+  }
 
 =head2 DelEnvProcess
 

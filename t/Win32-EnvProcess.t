@@ -2,14 +2,14 @@
 # `make test'. After `make install' it should work as `perl Win32-EnvProcess.t'
 
 #########################
-#  v.0.03
+#  v.0.04
 
 use File::Copy;
 use File::Basename;
 use Config;
 use Cwd;
 
-use Test::More tests => 27;
+use Test::More tests => 29;
 
 use Win32::EnvProcess qw(:all);
 ok(1); # If we made it this far, we're ok.
@@ -45,16 +45,18 @@ is(scalar(@pids), scalar(@tasks), 'GetPids') or
 
 # Get the parent
 my $pid = GetPids();
-is(0+$^E, 0, 'os error ok') or diag ("$^E: Value of \$pid is: $pid\n");
+is(0+$^E, 0, 'GetPids os error ok') or diag ("$^E: Value of \$pid is: $pid\n");
 ok($pid != 0, "ppid") or diag ("\$pid: $pid");
 
 my %hash = qw (var_thing some_value var_another another yavar yavalue);
 my $result = SetEnvProcess($pid, %hash);
-is(0+$^E, 0, 'os error ok') or diag ("$^E: Value of \@pids is: @pids\n");
+is(0+$^E, 0, 'SetEnvProcess os error ok') or diag ("$^E: Value of \$pid is: $pid\n");
 ok($result == 3, "Set 3 vars") or diag ("\$result: $result");
 
-$result = SetEnvProcess ($pid, 'NoValue');
-is(0+$^E, 0, 'os error ok') or diag ("$^E: NoValue\n");
+# Tests on Strawberry Perl start failing here
+
+$result = SetEnvProcess ($pid, 'NoValue', 'value');
+is(0+$^E, 0, 'NoValue os error ok') or diag ("\$pid: $pid, $^E: NoValue\n");
 ok($result == 1, "Set 1 var(no value)") or diag ("\$result: $result");
 
 my @values = GetEnvProcess ($pid, 'USERNAME', 'abcdefg');
@@ -86,6 +88,14 @@ ok($result == 4, "Delete vars") or diag ("\$result: $result");
 $result = DelEnvProcess($pid, 'NonExistantVariable');
 is(0+$^E, 0, 'os error ok') or diag ("$^E: Value of \@pids is: @pids\n");
 ok($result == 0, "Delete nonvar") or diag ("\$result: $result");
+
+# Tests for "get all" enhancement
+@values = GetEnvProcess ($pid);
+is(0+$^E, 0, 'os error ok') or diag ("$^E: 'get all'\n");
+ok(scalar(@values), "Get all") or diag ("\@values(all): @values");
+
+#local $"="\n";
+#diag ("\@values(all): @values");
 
 # Uncomment the next line if you do not want the DLL in the Perl bin directory
 # unlink $to;

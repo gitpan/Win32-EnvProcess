@@ -1,6 +1,7 @@
 // ----------------------------------------------------------------------------------
 //  EnvProcessDll.dll
 // Used by the Perl XS module Win32::EnvProcess
+// Version 0.04
 // ----------------------------------------------------------------------------------
 
 #include <windows.h>
@@ -8,10 +9,11 @@
 
 #include "EnvProcess.h"
 
-void MapEnv (void);
-void SetEnv (char *p);
-void GetEnv (char *p);
-void DelEnv (char *p);
+void MapEnv    (void);
+void SetEnv    (char *p);
+void GetEnv    (char *p);
+void DelEnv    (char *p);
+void GetAllEnv (char *p);
 
 /*
    It would be nicer here to avoid the temporary fixed-length arrays.
@@ -51,7 +53,6 @@ BOOL WINAPI DllMain(HINSTANCE hInstDLL, DWORD fdwReason, LPVOID LPReserved)
   return 1;
 }
 
-
 // -------------------------------------------------------------------
 
 void MapEnv (void)
@@ -77,6 +78,9 @@ void MapEnv (void)
     else
     if (p[0] == DELCMD)
        DelEnv(p);
+    else
+    if (p[0] == GETALLCMD)
+       GetAllEnv(p);
     else
        p[0] = INVALID_CMD;
 
@@ -198,6 +202,69 @@ void GetEnv (char *p)
 
 
 }  /* GetEnv */
+
+// -------------------------------------------------------------------
+
+void GetAllEnv (char *p)
+{
+    char *p2;          /* pointer within FMO */
+    int count = 0;     /* Number of items found */
+    size_t len;        /* Number of bytes remaining */
+
+    LPTSTR lpszVariable;
+    LPVOID lpvEnv;
+
+    // Get a pointer to the environment block.
+
+    lpvEnv = GetEnvironmentStrings();
+
+    // If the returned pointer is NULL, exit.
+    if (lpvEnv == NULL) {
+        p[0] = ENVVAR_NOT_FOUND;
+        p[1] = '\0';
+        return;
+    }
+
+	/* Get the values */
+	p2 = p + 2;
+
+	len = MAXSIZE - 2;  /* How many bytes do we have remaining? */
+
+    // Variable strings are separated by NULL byte, and the block is
+    // terminated by a NULL byte.
+
+	for (lpszVariable = (LPTSTR) lpvEnv; *lpszVariable; /* no-op */)
+	{
+	    size_t dwSize = strlen(lpszVariable);
+
+	    if (dwSize > len) {
+    	    *p2 = '\0';
+    	    p[0] = VALUE_TOO_BIG;
+    	    break;
+        }
+
+        if (count >= MAXITEMS / 2) {
+		    p[0] = ENV_TOO_MANY;
+		    break;
+	    }
+
+	    if (dwSize == 0 ) {
+		    *p2 = '\0';
+        }
+        else {
+	        strcpy (p2, lpszVariable);
+	        lpszVariable += dwSize + 1;
+	        count++;
+	    }
+
+	    p2  += dwSize + 1;
+        len += dwSize + 1;
+    }
+
+    p[1] = count;
+    FreeEnvironmentStrings(lpvEnv);
+
+}   // GetAllEnv
 
 // -------------------------------------------------------------------
 
