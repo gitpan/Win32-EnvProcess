@@ -13,12 +13,12 @@
 #include "EnvProcess.h"
 
 /* 
-   Version 0.04
+   Version 0.05
    
    Limitations:
 
    Total size of variable names and values: MAXSIZE
-   Total number of environment variables: MAXITEMS/2
+   Total number of environment variables:   MAXITEMS/2
    
    Locking: the entire sequence is serial because a named FMO is used.  
         Creating the File Mapping Object(FMO), writing to it,
@@ -40,9 +40,13 @@
    
    Vista
 
+   Bug: non-existent environment variable returns the PID
+
+
 */
 
 static void ProcessError(const char *szMessage);
+static void SetError (char chErr);
 static BOOL FindDll(void);
 static int iGetPid (const char *pszExeName);
 static char * strtolower (char * szIn);
@@ -84,6 +88,35 @@ static void ProcessError(const char *szMessage)
 
 }  
 
+/* ------------------------------------------------------------------ */
+
+static void SetError (char chErr)
+{
+     DWORD dwErr;
+       
+     switch (chErr)
+     {
+         case INVALID_CMD:
+             dwErr = ERROR_INVALID_FLAG_NUMBER;
+             break;
+         case VALUE_TOO_BIG:
+             dwErr = ERROR_NOT_ENOUGH_MEMORY;
+             break;
+         case ENVVAR_NOT_FOUND:
+             dwErr = ERROR_ENVVAR_NOT_FOUND;
+             break;
+         case ENV_TOO_MANY:
+             dwErr = ERROR_OUTOFMEMORY;
+             break;
+         default:
+             dwErr = ERROR_INVALID_FUNCTION;
+             break;
+     }
+
+     SetLastError(dwErr);
+ 
+ }    /* SetError */
+ 
 /* ------------------------------------------------------------------ */
 
 static DWORD dwGetOS ()
@@ -345,9 +378,6 @@ SetEnvProcess(nPid, ...)
       XSRETURN_UNDEF;
    }
 
-   ReleaseMutex(hMutex);
-   CloseHandle(hMutex);
-
    /* Read the results */
    p2 = p + 2;
    NumVars /= 2;
@@ -362,6 +392,10 @@ SetEnvProcess(nPid, ...)
 
    UnmapViewOfFile (p);
    CloseHandle (hMap);
+
+   /* Mutex release moved in v.0.05 */
+   ReleaseMutex(hMutex);
+   CloseHandle(hMutex);
 
    RETVAL = (int)NumVars;
    
@@ -482,13 +516,10 @@ GetEnvProcess(nPid, ...)
       XSRETURN_UNDEF;
    }
  
-   /* 
-   if (p[0] != GETCMD && p[0] != GETALLCMD) {
-       char err[81];
-       sprintf (err, "(GetEnvProcess) Error returned in FMO: 0x%02x", p[0]);
-       ProcessError (err);
+   /* Pick up the first byte of the FMO, which may contain an error code */
+   if (p[0] != GETCMD && p[0] != GETALLCMD) {      
+       SetError (p[0]);		      
    }
-   */
    
    /* Get the number of variables from the FMO */
    if (bGetAll) {
@@ -499,13 +530,15 @@ GetEnvProcess(nPid, ...)
    p2 = p + 2;
       
    for (i = 0; i < NumVars; i++) {   
+      
       /* 0.04 change */
       if (*p2) {
           int iLen = strlen(p2);
           XPUSHs(sv_2mortal(newSVpvn (p2, iLen))); 
           p2 += iLen + 1;
        }
-       else {
+       else {   /* 0.05 change */
+          XPUSHs(sv_2mortal(newSVpvn (p2, 0)));
           p2++;
        }
    }
@@ -630,9 +663,6 @@ DelEnvProcess (nPid, ...)
       XSRETURN_UNDEF;
    }
 
-   ReleaseMutex(hMutex);   
-   CloseHandle(hMutex);
-
    /* Read the results */
    p2 = p + 2;
    NumSent = NumVars;
@@ -643,6 +673,10 @@ DelEnvProcess (nPid, ...)
       if (!bResult) NumVars--;
       p2 += sizeof(BOOL);
    }
+
+   /* Mutex release moved in v.0.05 */
+   ReleaseMutex(hMutex);
+   CloseHandle(hMutex);
 
    UnmapViewOfFile (p);
    CloseHandle (hMap);

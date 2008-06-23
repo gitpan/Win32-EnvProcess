@@ -23,6 +23,7 @@ MAKE_GNU_FRAG
  
 Dll: EnvProcessDll.c
 	$(CC) $(CCFLAGS) EnvProcessDll.c  /link /OUT:.\$(INST_ARCHLIB)\auto\$(FULLEXT)\EnvProcessDll.$(SO) -dll
+        if exist EnvProcessDll.manifest mt.exe -nologo -manifest EnvProcessDll.manifest -outputresource:EnvProcessDll;2
 MAKE_FRAG
 
     }

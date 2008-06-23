@@ -1,4 +1,4 @@
-Win32-EnvProcess version 0.04
+Win32-EnvProcess version 0.05
 ================================
 
 Perl extension to set or get environment variables from
@@ -15,6 +15,8 @@ SYNOPSIS
     my @pids   = GetPids([exe_name]);
     
 INSTALLATION
+
+A C/C++ compiler is required to build this module.
 
 To install this module type the following:
 

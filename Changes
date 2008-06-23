@@ -19,3 +19,15 @@ Revision history for Perl extension Win32::EnvProcess.
 	  list of the first 127 environment variables and their values
 	- additional tests for new features
 	- README documentation of MakeMaker patch for Visual Studio 2005
+
+0.05  Sun June 22 15:30:00 2008
+	- Clarified in the README file that a C/C++ compiler is required
+	- Fixed a bug (from 0.04) where an nonexistent variable returned the
+	  PID from GetEnvProcess.
+	- Fixed a bug where a large environment block resulted in no variables
+	  being returned by GetEnvProcess.  An error message is now returned.
+	- Improved error reporting.  Nonexistent environment variables now set
+	  $^E to 603 ERROR_ENVVAR_NOT_FOUND.  Other errors set relevant values.
+	- Improved POD concerning error numbers
+	- Mutex was being released too early in SetEnvProcess and DelEnvProcess
+	- Adapted tests for changes

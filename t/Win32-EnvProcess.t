@@ -9,7 +9,7 @@ use File::Basename;
 use Config;
 use Cwd;
 
-use Test::More tests => 29;
+use Test::More tests => 34;
 
 use Win32::EnvProcess qw(:all);
 ok(1); # If we made it this far, we're ok.
@@ -60,7 +60,8 @@ is(0+$^E, 0, 'NoValue os error ok') or diag ("\$pid: $pid, $^E: NoValue\n");
 ok($result == 1, "Set 1 var(no value)") or diag ("\$result: $result");
 
 my @values = GetEnvProcess ($pid, 'USERNAME', 'abcdefg');
-is(0+$^E, 0, 'os error ok') or diag ("$^E: 'USERNAME' & 'abcdefg'\n");
+# 203: ERROR_ENVVAR_NOT_FOUND
+is(0+$^E, 203, 'os error ok') or diag ("$^E: '1: USERNAME' & 'abcdefg'\n");
 ok(scalar(@values) == 2, "Get 2 vars") or diag ("\@values(2): @values");
 ok($values[0] eq $ENV{'USERNAME'}, "Check USERNAME") or 
     diag ("\%ENV: $ENV{'USERNAME'}, \$values[0]: $values[0]");
@@ -68,7 +69,8 @@ ok(!defined $result[1], "Get 2 vars - 2nd no value") or diag ("\@values(2): @val
 
 # Once again, defaulting the pid
 @values = GetEnvProcess (0, 'USERNAME', 'abcdefg');
-is(0+$^E, 0, 'os error ok') or diag ("$^E: 'USERNAME' & 'abcdefg'\n");
+# 203: ERROR_ENVVAR_NOT_FOUND
+is(0+$^E, 203, 'os error ok') or diag ("$^E: '2: USERNAME' & 'abcdefg'\n");
 ok(scalar(@values) == 2, "Get 2 vars") or diag ("\@values(2): @values");
 ok($values[0] eq $ENV{'USERNAME'}, "Check USERNAME") or 
     diag ("\%ENV: $ENV{'USERNAME'}, \$values[0]: $values[0]");
@@ -76,7 +78,8 @@ ok(!defined $result[1], "Get 2 vars - 2nd no value") or diag ("\@values(2): @val
 
 
 @values = GetEnvProcess ($pid, 'abcdefg');
-is(0+$^E, 0, 'os error ok') or diag ("$^E: 'abcdefg'\n");
+# 203: ERROR_ENVVAR_NOT_FOUND
+is(0+$^E, 203, 'os error ok') or diag ("$^E: 'abcdefg'\n");
 ok(scalar(@values) == 1, "Get 1 empty var") or diag ("\@values(1): @values");
 ok(!defined $result[0], "Get 1 empty var") or diag ("\@values(1): @values");
 
@@ -92,7 +95,24 @@ ok($result == 0, "Delete nonvar") or diag ("\$result: $result");
 # Tests for "get all" enhancement
 @values = GetEnvProcess ($pid);
 is(0+$^E, 0, 'os error ok') or diag ("$^E: 'get all'\n");
-ok(scalar(@values), "Get all") or diag ("\@values(all): @values");
+unless (ok(scalar(@values), "Get all")) {
+    diag ("Get all \@values: <@values>");
+    diag ("Get all scalar \@values: ".@values);
+}
+
+# Test for non-existent variable
+@values = GetEnvProcess($pid, 'XXXXXXXXXXXX');
+
+# 203: ERROR_ENVVAR_NOT_FOUND
+is(0+$^E, 203, 'os error ok') or diag ("$^E: 'Non-existent'\n");
+ok(scalar(@values)==1, 'Non-existent') or diag ("\@values(all): <@values>");
+ok($values[0] eq "", 'Non-existent - empty') or diag ("\@values(all): <@values>");
+
+# Test for non-existent PID (Win32 PIDs are always even)
+@values = GetEnvProcess(1111);
+# 87 ERROR_INVALID_PARAMETER 
+is(0+$^E, 87, 'os error ok') or diag ("$^E: 'Wrong pid'\n");
+ok(!defined $values[0], 'Wrong pid - undef') or diag ("\@values(all): @values");
 
 #local $"="\n";
 #diag ("\@values(all): @values");

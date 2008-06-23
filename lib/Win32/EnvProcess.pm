@@ -24,7 +24,7 @@ our @EXPORT = qw(
 	
 );
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 sub AUTOLOAD {
     # This AUTOLOAD is used to 'autoload' constants from the constant()
@@ -132,7 +132,7 @@ specified will have no value.  Note that this is not the same as deleting
 a variable.
 
 Returns: the number of environment variables changed.  Error information
-will be available in $^E.
+will be available in $^E (See below).
 
 =head2 GetEnvProcess
 
@@ -142,13 +142,15 @@ $pid:  		The process identifier (PID) of the target process.
 		If set to 0 (zero) the parent process identifier is used
 env_var_name:	The name[s] of the environment variable[s] to be read.
 		If not supplied then as many environment variables as possible
-		are returned (see LIMITATIONS below).
+		are returned (see C<LIMITATIONS> below).
 
 Get one or more environment variable values from another process.
 
 Returns undef on error, error information will be available in $^E.
-If one or more environment variable name are specified, alist of environment 
-variable values is returned.  Note that these may be empty strings if no value is set. 
+If one or more environment variable name are specified, a list of environment 
+variable values is returned.  Note that these may be empty strings if no value is set.
+If a requested variable does not exist then an empty string is returned in it's place
+in the list, and $^E will be set to 203 (ERROR_ENVVAR_NOT_FOUND).
 
 If no environment variable names are specified then the environment block is returned (subject to LIMITATIONS) in the form of a list.  
 Items are of the form variable=value and may be extracted into a hash as follows:
@@ -178,7 +180,7 @@ start-up and may be holding it internally, the perl interpreter is such
 a program (see C<Interaction with perl scripts> below).
 
 Returns: the number of environment variables deleted.  Error information
-will be available in $^E.
+will be available in $^E (See below).
 
 =head2 GetPids
 
@@ -197,10 +199,43 @@ is unlikely that we have the permissions to manipulate the environment block.
 The .exe files registered with a process may be in 8.3 format, and currently 
 this function makes no attempt to resolve a 'long name' to short.
 
+=head1 $^E ($EXTENDED_OS_ERROR) VALUES
+
+The most likely causes of certain Win32 errors are given below:
+
+=head3 8	Not enough storage is available to process this command.
+
+The total data for the environment variables exceeds C<LIMITATIONS>.
+In this case as much processing as possible will be done.
+
+=head3 14	Not enough storage is available to complete this operation.
+
+The number of environment variables exceeds C<LIMITATIONS>
+
+=head3 87	The parameter is incorrect.	
+
+The supplied PID does not exist
+
+=head3 183	Cannot create a file when that file already exists.
+
+Under most circumstances this error may be ignored when correct results are returned.  
+It generally means that more than one process (or thread) is using this module.
+
+=head3 186 	The flag passed is not correct.
+
+Internal corruption of the FMO, please contact the author
+
+=head3 203	The system could not find the environment option that was entered
+
+The requested environment variable does not exist
+
+
 =head1 LIMITATIONS
 
-Total size of variable names and values: 4096.
-Total number of environment variables  :  127.
+Total size of variable names and values: 8192 (increased at v.0.05).
+
+Total number of environment variables  :  254 (increased at v.0.05).
+
 These are artificial limits and may be made more flexible in a future release.   
 
 Locking: the entire sequence is serial because a named FMO is used.  Creating 

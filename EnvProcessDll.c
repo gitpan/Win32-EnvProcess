@@ -1,12 +1,12 @@
 // ----------------------------------------------------------------------------------
 //  EnvProcessDll.dll
 // Used by the Perl XS module Win32::EnvProcess
-// Version 0.04
+// Version 0.05
 // ----------------------------------------------------------------------------------
 
 #include <windows.h>
 #include <stdio.h>
-
+#define UNICODE
 #include "EnvProcess.h"
 
 void MapEnv    (void);
@@ -197,7 +197,7 @@ void GetEnv (char *p)
 
 	   pszName += strlen(pszName) + 1;
 	   p2      += dwSize + 1;
-       dwlen   += dwSize + 1;
+       dwlen   -= dwSize + 1;    /* 0.05 change */
     }
 
 
@@ -233,7 +233,7 @@ void GetAllEnv (char *p)
     // Variable strings are separated by NULL byte, and the block is
     // terminated by a NULL byte.
 
-	for (lpszVariable = (LPTSTR) lpvEnv; *lpszVariable; /* no-op */)
+    for (lpszVariable = (LPTSTR)lpvEnv; *lpszVariable; /* no-op */)
 	{
 	    size_t dwSize = strlen(lpszVariable);
 
@@ -258,7 +258,7 @@ void GetAllEnv (char *p)
 	    }
 
 	    p2  += dwSize + 1;
-        len += dwSize + 1;
+        len -= dwSize + 1;  /* 0.05 change */
     }
 
     p[1] = count;
