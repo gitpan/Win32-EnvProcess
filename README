@@ -1,4 +1,4 @@
-Win32-EnvProcess version 0.05
+Win32-EnvProcess version 0.06
 ================================
 
 Perl extension to set or get environment variables from

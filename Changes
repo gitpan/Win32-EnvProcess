@@ -31,3 +31,8 @@ Revision history for Perl extension Win32::EnvProcess.
 	- Improved POD concerning error numbers
 	- Mutex was being released too early in SetEnvProcess and DelEnvProcess
 	- Adapted tests for changes
+	
+0.06  Sun June 29 07:30:00 2008 
+	- Fixed ERROR_ALREADY_EXISTS bug caused by early release of Mutex in SetEnvProcess
+	  This was a timing bug and not possible to reliably place into automated tests.
+	- Corrected MANIFEST file  

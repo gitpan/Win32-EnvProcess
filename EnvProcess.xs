@@ -13,7 +13,7 @@
 #include "EnvProcess.h"
 
 /* 
-   Version 0.05
+   Version 0.06
    
    Limitations:
 
@@ -63,7 +63,7 @@ static void ProcessError(const char *szMessage)
     DWORD dwErr = GetLastError();
     
     /* DEBUG */
-    PerlIO * debug = PerlIO_open ("debug.txt", "a");
+    PerlIO * debug = PerlIO_open (".\\debug.txt", "a");
     
     FormatMessage( 
                 FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
@@ -194,8 +194,7 @@ static BOOL FindDll(void)
     DWORD dwLen = 
              SearchPath(NULL, DLLNAME, NULL, MAX_PATH, tcBuffer, &lpFilePart);
          
-    if ( dwLen == 0 )
-    {
+    if ( dwLen == 0 )  {
        bRetn = FALSE;
     }
     
@@ -217,6 +216,7 @@ BOOL ConnectToProcess(int nPid) {
 
    if ( hProcess == NULL )
    {
+      /*ProcessError("OpenProcess");*/
       return FALSE;
    }
 
@@ -225,12 +225,14 @@ BOOL ConnectToProcess(int nPid) {
 
    if ( Remotep == NULL )
    {
+      /*ProcessError("VirtualAllocEx");*/
       CloseHandle(hProcess);
       return FALSE;
    }
 
    if (!WriteProcessMemory (hProcess, Remotep, DLLNAME, cb, NULL))
    {
+      /*ProcessError("WriteProcessMemory");*/
       CloseHandle(hProcess);
       return FALSE;   /* Correction version 0.04 */
    }
@@ -241,6 +243,7 @@ BOOL ConnectToProcess(int nPid) {
 
    if ( hThread == NULL )
    {
+      /*ProcessError("CreateRemoteThread");*/
       VirtualFreeEx(hProcess, Remotep, 0, MEM_RELEASE);   /* v0.04 */
       CloseHandle(hProcess);
       return FALSE;
@@ -304,6 +307,7 @@ SetEnvProcess(nPid, ...)
     hMutex = CreateMutex (NULL, FALSE, MUTEXNAME);
    
     if (hMutex == NULL) {
+       /* ProcessError("CreateMutex"); */
        XSRETURN_UNDEF;
     }
   
@@ -424,9 +428,10 @@ GetEnvProcess(nPid, ...)
     /* Default return value - false (On error) */
     RETVAL = 0; 
       
-    /* Can we find the DLL? */
+    /* Can we find the DLL? 
+       Removed in v0.06
     if (!FindDll())
-        XSRETURN_UNDEF;
+        XSRETURN_UNDEF;  */
    
     /* Was a PID supplied? */
     if (nPid == 0)
@@ -440,14 +445,21 @@ GetEnvProcess(nPid, ...)
     hMutex = CreateMutex (NULL, FALSE, MUTEXNAME);
    
     if (hMutex == NULL) {
+       /*ProcessError("CreateMutex");*/
        XSRETURN_UNDEF;
     }
   
+    /* 0.06 change */
+    if (GetLastError() == ERROR_ALREADY_EXISTS) {
+        SetLastError(ERROR_SUCCESS);
+    }
+
     dwRetn = WaitForSingleObject (hMutex, INFINITE);
     
     if (dwRetn != WAIT_OBJECT_0) {
        /* If we get back WAIT_ABANDONED then we exit anyway */
        /* Any others waiting will also get WAIT_ABANDONED   */
+       /* ProcessError("WaitForSingleObject"); */
        CloseHandle (hMutex);
        XSRETURN_UNDEF;
     }
@@ -463,12 +475,19 @@ GetEnvProcess(nPid, ...)
         p = MapViewOfFile (hMap, FILE_MAP_ALL_ACCESS, 0, 0, 0);
 
     if (p == NULL) {
+        /* ProcessError("CreateFileMapping/MVOF"); */
         CloseHandle (hMap);
         ReleaseMutex(hMutex);     
         CloseHandle(hMutex);
         XSRETURN_UNDEF;
     }
-
+    
+     /*
+     if (GetLastError() != ERROR_SUCCESS) {
+         ProcessError("CreateFileMapping/MVOF test");      
+     }
+    */
+    
     p2 = p+2;   /* Reserve the first two bytes */
     
     if (items > 1) {
@@ -508,6 +527,7 @@ GetEnvProcess(nPid, ...)
    /* Find the other process */
    if (!ConnectToProcess(nPid))
    {
+      /* ProcessError("ConnectToProcess"); */
       UnmapViewOfFile (p);
       CloseHandle (hMap);
 
@@ -543,11 +563,18 @@ GetEnvProcess(nPid, ...)
        }
    }
    
-   ReleaseMutex(hMutex);   
-   CloseHandle(hMutex);
-
    UnmapViewOfFile (p);
    CloseHandle (hMap);
+
+   /* 0.06 change, moved these statements later */
+   ReleaseMutex(hMutex);   
+   CloseHandle(hMutex);
+   
+   /*
+   if (GetLastError() != ERROR_SUCCESS) {
+       ProcessError("On Exit");
+   }
+   */
    
    /* Return the list on the stack */
    XSRETURN(NumVars);
